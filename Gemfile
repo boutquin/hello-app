@@ -56,13 +56,13 @@ group :test do
   gem "selenium-webdriver"
 end
 
-# Database gems for development and testing
-group :development, :test do
-  # Use sqlite3 as the database for Active Record
-  gem "sqlite3", ">= 1.4"
-end
-# Database gems for production
-group :production do
-  # Use PostgreSQL as the database for Active Record
-  gem "pg"
-end
+# # Database gems for development and testing
+# group :development, :test do
+#   # Use sqlite3 as the database for Active Record
+#   gem "sqlite3", ">= 1.4"
+# end
+# # Database gems for production
+# group :production do
+#   # Use PostgreSQL as the database for Active Record
+#   gem "pg"
+# end
