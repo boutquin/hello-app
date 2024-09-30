@@ -1,90 +1,135 @@
+# The name of the workflow is "CI" (Continuous Integration). This workflow will be triggered
+# when certain events occur, such as when code is pushed or a pull request is opened or updated.
 name: CI
 
+# The workflow is triggered on two types of events:
+# 1. `pull_request`: Runs the workflow when a pull request is opened or updated. This is useful
+#    to ensure that incoming changes are tested and validated before they are merged.
+# 2. `push`: Runs the workflow when code is pushed to the "main" branch. This helps ensure that
+#    the main branch is always in a healthy state.
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: [main] # Specifies that the workflow should only run on pushes to the "main" branch.
 
+# Define the jobs in the CI pipeline. Each job runs independently on its own virtual machine (VM).
 jobs:
+  # This job scans Ruby files for common security vulnerabilities using Brakeman, a static analysis tool.
   scan_ruby:
+    # Specifies that this job should run on the latest available Ubuntu runner.
     runs-on: ubuntu-latest
 
+    # A series of steps to be executed as part of this job.
     steps:
+      # Step 1: Check out the code from the GitHub repository. This action uses the `actions/checkout` plugin.
+      # It is required to access the source code in the repository for scanning.
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Version 4 of the checkout action is used.
 
+      # Step 2: Set up Ruby in the environment. This step uses the `ruby/setup-ruby` action to configure
+      # the specified Ruby version and environment. This action installs the Ruby version listed in the
+      # `.ruby-version` file of the repository and sets up Bundler for dependency management.
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@v1 # Version 1 of the setup-ruby action is used.
         with:
-          ruby-version: .ruby-version
-          bundler-cache: true
+          ruby-version: .ruby-version # Use the Ruby version specified in the `.ruby-version` file.
+          bundler-cache: true # Enable Bundler caching to speed up subsequent builds by caching dependencies.
 
+      # Step 3: Run Brakeman, a static analysis security tool for Ruby on Rails applications.
+      # This command scans the application's Ruby code for common security vulnerabilities.
+      # The `--no-pager` option disables paging, so the output is written directly to the console.
       - name: Scan for common Rails security vulnerabilities using static analysis
         run: bin/brakeman --no-pager
 
+  # This job scans JavaScript dependencies for security vulnerabilities using the Importmap audit tool.
   scan_js:
+    # The job runs on the latest version of Ubuntu.
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Check out the code from the GitHub repository.
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2: Set up Ruby (same as in the scan_ruby job). Ruby is still needed because the
+      # importmap audit tool depends on the Ruby environment.
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      # Step 3: Run the Importmap audit command. This tool scans JavaScript dependencies managed by
+      # Importmap for known security vulnerabilities.
       - name: Scan for security vulnerabilities in JavaScript dependencies
         run: bin/importmap audit
 
+  # This job lints Ruby code to ensure it follows consistent style guidelines, typically defined in
+  # a `.rubocop.yml` configuration file. RuboCop is a Ruby static code analyzer and code formatter.
   lint:
+    # The job runs on the latest version of Ubuntu.
     runs-on: ubuntu-latest
+
     steps:
+      # Step 1: Check out the code from the GitHub repository.
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2: Set up Ruby (same as in other jobs).
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      # Step 3: Run RuboCop to lint the Ruby code. The `-f github` option formats the output
+      # in a GitHub-compatible format, making it easier to read the results in the GitHub Actions interface.
       - name: Lint code for consistent style
         run: bin/rubocop -f github
 
+  # This job runs the application's automated test suite. It ensures that the code is functioning as expected.
   test:
+    # The job runs on the latest version of Ubuntu.
     runs-on: ubuntu-latest
 
-    # services:
-    #  redis:
-    #    image: redis
-    #    ports:
-    #      - 6379:6379
-    #    options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
+      # Step 1: Install additional required packages. In this case, we install:
+      # - `google-chrome-stable`: Required for system tests using Capybara with Selenium for browser-based tests.
+      # - `curl`: A tool for transferring data with URLs. It might be used by the application or tests.
+      # - `libjemalloc2`: A memory allocator that can help improve performance.
+      # - `libvips`: A fast image processing library, useful if the app handles images.
+      # The `--no-install-recommends` flag ensures that only the necessary packages are installed,
+      # minimizing additional dependencies.
       - name: Install packages
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y google-chrome-stable curl libjemalloc2 libvips sqlite3
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y google-chrome-stable curl libjemalloc2 libvips
 
+      # Step 2: Check out the code from the GitHub repository.
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 3: Set up Ruby (same as in other jobs).
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: .ruby-version
-          bundler-cache: true
+          ruby-version: .ruby-version # Use the Ruby version specified in the `.ruby-version` file.
+          bundler-cache: true # Cache Bundler dependencies to speed up the build.
 
+      # Step 4: Run the Rails test suite. The `bin/rails test test:system` command runs both the
+      # standard tests (unit and integration) and system tests (which often involve browser interaction).
+      # The `RAILS_ENV=test` environment variable is set to ensure that tests are run in the test environment.
       - name: Run tests
         env:
-          RAILS_ENV: test
-          # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test test:system
+          RAILS_ENV: test # Specifies that the tests should run in the test environment.
+        run: bin/rails test test:system
 
+      # Step 5: If any system tests fail, Rails will generate screenshots. This step ensures that
+      # these screenshots are uploaded as artifacts, so they can be viewed later to diagnose the failure.
+      # The `if: failure()` condition ensures that this step only runs if there was a failure in the tests.
+      # The `actions/upload-artifact@v4` action is used to upload the screenshots as artifacts.
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() # Only run this step if the previous test step fails.
         with:
-          name: screenshots
-          path: ${{ github.workspace }}/tmp/screenshots
-          if-no-files-found: ignore
+          name: screenshots # The name of the artifact (screenshots).
+          path: ${{ github.workspace }}/tmp/screenshots # The path to the screenshots in the workspace.
+          if-no-files-found: ignore # If no screenshots are found, ignore this step.
